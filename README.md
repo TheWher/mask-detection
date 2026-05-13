@@ -54,10 +54,11 @@ mask-detection/
 pip install -r requirements.txt
 ```
 
-> 如使用 Windows Store 版 Python 遇长路径错误，建议创建虚拟环境：
+> 如果遇到 `Could not install packages due to an OSError` 长路径错误，说明你用的是 Windows Store 版 Python，建议卸载后改用 [python.org](https://python.org) 的官网版本。临时解决可用短路径虚拟环境：
 > ```bash
 > python -m venv C:/tmp/mask-venv
 > C:/tmp/mask-venv/Scripts/pip install -r requirements.txt
+> C:/tmp/mask-venv/Scripts/python train.py   # 后续均用此路径
 > ```
 
 ### 2. 生成数据集
