@@ -10,7 +10,6 @@ build/
 venv/
 .venv/
 env/
-C:/tmp/mask-venv/
 
 # IDE
 .vscode/
@@ -26,9 +25,13 @@ C:/tmp/mask-venv/
 .DS_Store
 Thumbs.db
 
-# Logs
-logs/*.log
+# Model (too large, users train it themselves)
+models/*.h5
 
-# Temp files
-test_batch/
+# Logs
+logs/
+
+# Output files
 batch_result.csv
+test_report.txt
+test_batch/
