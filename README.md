@@ -5,7 +5,7 @@
 ## 项目简介
 
 - **任务**：图像二分类 —— Mask / NoMask
-- **模型**：4 层 CNN + Flatten + Dense(2, softmax)，~185 万参数
+- **模型**：4 层 CNN + GAP + Dense(2, softmax)，~25 万参数
 - **人脸检测**：SSD Caffe 模型（OpenCV DNN，默认）+ Haar 级联（回退）
 - **数据**：3669 张真实人脸图像（VOC XML 标注），mask 656 张 / nomask 3013 张
 - **准确率**：最佳验证准确率 98.5%
@@ -26,32 +26,30 @@
 
 ```
 mask-detection/
+├── gui_app.py                    # 图形化集成界面
 ├── model.py                      # CNN 模型定义
-├── train.py                      # 训练脚本（启用类别权重）
+├── config.py                     # 共享配置 + 工具函数
+├── train.py                      # 训练（含 CLI 参数）
 ├── predict.py                    # 单张预测
 ├── batch_predict.py              # 批量预测 + CSV
 ├── predict_realtime.py           # 实时检测（摄像头/图片）
 ├── ssd_detector.py               # SSD 检测器模块
+├── report.py                     # 报告图表生成
+├── export_tflite.py              # TFLite 模型导出
 ├── label_images.py               # 交互式标注工具
-├── test_system.py                # 12 项功能测试套件
-├── dataset/
-│   ├── prepare_dataset.py        # 合成数据生成（仅演示）
-│   └── train/data/
-│       ├── labeled/              # 原始图片 3539 张
-│       ├── label/                # VOC XML 标注 3537 个
-│       └── images_2class/        # 训练数据
-│           ├── mask/             # 656 张
-│           └── nomask/           # 3013 张
+├── test_system.py                # 12 项功能测试
+├── dataset/train/data/
+│   ├── labeled/                  # 原始图片 3539 张
+│   ├── label/                    # VOC XML 标注 3537 个
+│   └── images_2class/            # 训练数据 (mask 656 / nomask 3013)
 ├── models/
-│   ├── mask_classifier_binary.h5 # CNN 模型 (98.5%)
-│   ├── face_mask_detection.prototxt   # SSD 结构 (Caffe)
-│   ├── face_mask_detection.caffemodel # SSD 权重 (Caffe)
-│   └── training_curve.png        # 训练曲线
-├── FaceMaskDetection-master/     # 参考项目（SSD 多框架实现）
+│   ├── mask_classifier_binary.h5     # CNN 模型 (~3MB)
+│   ├── face_mask_detection.prototxt  # SSD 结构 (Caffe)
+│   ├── face_mask_detection.caffemodel# SSD 权重 (Caffe)
+│   └── report_*.png / training_*.png # 报告图表
 ├── utils/
-│   ├── logger.py                 # 统一日志工具
-│   └── __init__.py
-└── logs/                         # 运行日志
+│   └── logger.py                 # 统一日志工具
+└── logs/                         # 训练日志 + TensorBoard
 ```
 
 ## 快速开始
@@ -126,7 +124,7 @@ python test_system.py
 | Conv2D(64) + BN + MaxPool | 56×56×64 | 第 2 卷积块 |
 | Conv2D(128) + BN + MaxPool | 28×28×128 | 第 3 卷积块 |
 | Conv2D(128) + BN + MaxPool | 14×14×128 | 第 4 卷积块 |
-| Flatten | 25088 | — |
+| GlobalAveragePooling2D | 128 | 替代 Flatten，大幅减少参数 |
 | Dense(64) + Dropout(0.5) | 64 | 防过拟合 |
 | Dense(2, softmax) | 2 | 二分类输出 |
 

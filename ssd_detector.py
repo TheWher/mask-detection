@@ -76,23 +76,24 @@ def decode_bbox(anchors, raw_outputs, variances=(0.1, 0.1, 0.2, 0.2)):
 
 
 def nms_boxes(bboxes, confidences, conf_thresh=0.5, iou_thresh=0.4):
-    """OpenCV DNN NMS 包装 — 比纯 Python 实现快一个数量级"""
+    """OpenCV DNN NMS — 返回原始数组索引（映射回 y_bboxes / bbox_max_scores）"""
     if len(bboxes) == 0:
         return []
-    # 转换 [xmin,ymin,xmax,ymax] → [x,y,w,h]
     boxes = []
     scores = []
+    orig_indices = []
     for i, b in enumerate(bboxes):
         if confidences[i] > conf_thresh:
             boxes.append([float(b[0]), float(b[1]),
                           float(b[2] - b[0]), float(b[3] - b[1])])
             scores.append(float(confidences[i]))
+            orig_indices.append(i)
     if not boxes:
         return []
     idxs = cv2.dnn.NMSBoxes(boxes, scores, conf_thresh, iou_thresh)
     if len(idxs) == 0:
         return []
-    return idxs.flatten().tolist()
+    return [orig_indices[i] for i in idxs.flatten()]
 
 
 class SSDDetector:
