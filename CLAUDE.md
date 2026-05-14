@@ -90,7 +90,7 @@ SSD 检测流（混合模式）：
 
 ## 关键细节
 
-- **样本不均衡**：mask 656 张 vs nomask 3013 张（约 1:4.6），`train.py` 中的 `compute_class_weights()` 可缓解此问题但默认未启用。
+- **样本不均衡**：mask 656 张 vs nomask 3013 张（约 1:4.6），`train.py` 中 `compute_class_weights()` 已启用（mask ~2.36× 权重）。
 - **训练数据来源**：3537 个 VOC XML 标注文件（`label/` 目录）对应 `labeled/` 中的图片，`<name>mask</name>` → mask，`<name>nomask</name>` → nomask。`label_images.py` 通过交互式 GUI 从 `labeled/` 标注并复制到 `images_2class/`。
 - **SSD 人脸检测**：FaceMaskDetection-master 的 Caffe 模型可做人脸检测，模型文件在 `models/face_mask_detection.{prototxt,caffemodel}`。OpenCV 的 C++ 层不兼容中文路径，使用时需把模型复制到无中文路径。
 - **验证集**：`validation_split=0.2` 从 `images_2class/` 自动切分，无单独验证目录。
@@ -100,8 +100,6 @@ SSD 检测流（混合模式）：
   - `--detector ssd`（默认）：SSD 检测人脸框 → CNN 分类
   - `--detector ssd-e2e`：SSD 端到端（人脸+分类一次完成，0.03s/帧，跳过 CNN）
   - `--detector haar`：Haar 级联人脸框 → CNN 分类（传统方案）
-- **类别权重**：`train.py` 中 `compute_class_weights()` 已启用，在线 227 行，对 mask 施加 ~2.36× 权重以缓解样本不均衡。
 - **prepare_dataset.py** 仅生成合成数据演示流程，使用真实数据时无需运行。
 - **SSD 检测器**：`ssd_detector.py` 用 OpenCV DNN 加载 Caffe SSD 模型，输入 260×260，5 层特征图多尺度检测，输出人脸框 + 二分类。可独立使用：`python ssd_detector.py <图片>`。
 - **日志系统**：`utils/logger.py` 提供统一日志（`get_logger()`），训练/测试脚本均使用。日志输出到 `logs/` 目录。
-- **README.md 已过时**：README 描述的是早期合成数据版本（800 张，`Dense(1, sigmoid)`），与当前真实数据版本（3669 张，`Dense(2, softmax)`）不一致。以本文件和实际代码为准。

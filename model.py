@@ -1,24 +1,18 @@
 """
-口罩佩戴检测 CNN 模型定义
-二分类任务：戴口罩(with_mask) vs 不戴口罩(without_mask)
-
-设计思路：
-  - 4层卷积 + BatchNormalization 加速收敛
-  - 仅使用 64 神经元全连接层，控制参数量
-  - Dropout 防过拟合，适合小数据集
-  - 相比原方案（850万参数）减少约 60%
+口罩佩戴检测 CNN 模型定义 — 二分类 (Mask / NoMask)
+4层卷积 + BatchNorm + Dense(64) + softmax
 """
-
 import tensorflow as tf
 from tensorflow.keras import layers, models
 
 
-def build_mask_classifier(input_shape=(224, 224, 3)):
+def build_mask_classifier(input_shape=(224, 224, 3), num_classes=4):
     """
-    构建轻量级 CNN 二分类模型
+    构建轻量级 CNN 四分类模型
 
     参数:
         input_shape: 输入图像尺寸, 默认 224x224x3
+        num_classes: 分类数, 默认 4
 
     返回:
         未编译的 Keras Sequential 模型
@@ -48,10 +42,10 @@ def build_mask_classifier(input_shape=(224, 224, 3)):
 
     # ---- 分类头 ----
     model.add(layers.Flatten())
-    # 14*14*128 = 25088 -> 64 神经元，大幅减少参数量
+    # 14*14*128 = 25088 -> 64 神经元
     model.add(layers.Dense(64, activation='relu'))
     model.add(layers.Dropout(0.5))
-    model.add(layers.Dense(1, activation='sigmoid'))
+    model.add(layers.Dense(num_classes, activation='softmax'))
 
     return model
 
@@ -62,7 +56,7 @@ def compile_model(model, learning_rate=0.001):
     """
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-        loss='binary_crossentropy',
+        loss='categorical_crossentropy',
         metrics=['accuracy']
     )
     return model
