@@ -123,7 +123,7 @@ def compute_class_weights():
             counts[cls] = 0
 
     total = sum(counts.values())
-    # flow_from_directory 字母序: mask_correct(0), mask_mouth(1), mask_nose(2), no_mask(3)
+    # flow_from_directory 字母序: mask(0), nomask(1)
     sorted_classes = sorted(CLASSES_LIST)
     weights = {}
     for idx, cls in enumerate(sorted_classes):

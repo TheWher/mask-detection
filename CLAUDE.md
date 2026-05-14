@@ -56,12 +56,12 @@ tensorboard --logdir logs/tensorboard
 **模型**：4 层 CNN + GlobalAveragePooling + Dense(64) + softmax，定义在 `model.py`。
 - 输入 224×224×3 → Conv(32)→BN→Pool → Conv(64)→BN→Pool → Conv(128)→BN→Pool → Conv(128)→BN→Pool → GAP → Dense(64)→Dropout(0.5) → Dense(2, softmax)
 - ~25 万参数（GAP 替代 Flatten，比原方案减少 87%），Adam(lr=0.001)，categorical_crossentropy
-- 最佳验证准确率 **98%+**（3669 张训练数据，733 张验证集）
+- 最佳验证准确率 **98.5%**（3669 张训练数据，733 张验证集）
 
 **模块关系**：
 
 ```
-config.py              # 共享路径/常量/load_trained_model/preprocess_image — 所有脚本从这里导入
+config.py              # 共享路径/常量(CONF_THRESH/IOU_THRESH/SSD_INPUT_SIZE等)/load_trained_model/preprocess_image — 所有脚本从这里导入
 model.py               # 模型定义 + 编译（build_mask_classifier / compile_model）
 train.py               # 训练入口 → 自动调 report.py 生成全部报告图表
 predict.py             # 单张推理（从 config 导入模型加载和预处理）
@@ -97,6 +97,8 @@ models/
 logs/
 ├── train.log                      # 最新训练日志
 └── tensorboard/                   # TensorBoard 事件文件
+
+FaceMaskDetection-master/          # SSD 模型参考实现（上游项目，非本项目的模块）
 ```
 
 **数据流**：
