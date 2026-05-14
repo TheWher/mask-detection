@@ -18,10 +18,7 @@ import cv2
 from PIL import Image
 import tensorflow as tf
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CNN_MODEL = os.path.join(BASE_DIR, 'models', 'mask_classifier_binary.h5')
-IMG_SIZE = (224, 224)
-CONF_THRESH = 0.5
+from config import BASE_DIR, MODEL_PATH as CNN_MODEL, IMG_SIZE, CONF_THRESH
 
 ID2CLASS = {0: ('MASK', (0, 255, 0)), 1: ('NO MASK', (0, 0, 255))}
 
@@ -188,7 +185,7 @@ class MaskDetector:
                 face = image[y1:y2, x1:x2]
                 if face.size == 0:
                     continue
-                cls_idx, conf, _ = self._cnn_classify(face)
+                cls_idx, conf, face_arr_exp = self._cnn_classify(face)
 
             label, color = ID2CLASS[cls_idx]
             text = f'{label} {conf:.0%}'
@@ -205,7 +202,6 @@ class MaskDetector:
                 face = image[y1:y2, x1:x2]
                 if face.shape[0] > 30 and face.shape[1] > 30:
                     try:
-                        _, _, face_arr_exp = self._cnn_classify(face)
                         heatmap = make_gradcam_heatmap(self.cnn, face_arr_exp, cls_idx)
                         if heatmap is not None:
                             heatmap = cv2.resize(heatmap, (x2 - x1, y2 - y1))

@@ -10,6 +10,7 @@ python label_images.py
 
 # 训练二分类模型 → models/mask_classifier_binary.h5
 python train.py
+python train.py --batch-size 32 --epochs 30 --lr 0.0005
 
 # 单张预测
 python predict.py <图片路径>
@@ -30,6 +31,13 @@ python ssd_detector.py <图片路径>                             # 单张测试
 # 测试套件（12项）
 python test_system.py
 
+# 训练结束后自动生成完整报告（或手动运行）
+python report.py                          # 数据集样本 + 模型结构 + 混淆矩阵
+python confusion_matrix.py                # 单独生成混淆矩阵 + CSV
+
+# 导出 TFLite 模型 (FP16 + INT8 + 动态量化)
+python export_tflite.py
+
 # 合成数据集（仅演示）
 python dataset/prepare_dataset.py
 ```
@@ -47,9 +55,9 @@ python dataset/prepare_dataset.py
 | `mask/` | 0 | 佩戴口罩 |
 | `nomask/` | 1 | 未佩戴口罩 |
 
-**模型**：4 层 CNN + Flatten + Dense(64) + softmax，定义在 `model.py`。
-- 输入 224×224×3 → Conv(32)→BN→Pool → Conv(64)→BN→Pool → Conv(128)→BN→Pool → Conv(128)→BN→Pool → Flatten → Dense(64)→Dropout(0.5) → Dense(2, softmax)
-- ~185 万参数，Adam(lr=0.001)，categorical_crossentropy
+**模型**：4 层 CNN + GlobalAveragePooling + Dense(64) + softmax，定义在 `model.py`。
+- 输入 224×224×3 → Conv(32)→BN→Pool → Conv(64)→BN→Pool → Conv(128)→BN→Pool → Conv(128)→BN→Pool → GAP → Dense(64)→Dropout(0.5) → Dense(2, softmax)
+- ~25 万参数（GAP 替代 Flatten，减少 85%），Adam(lr=0.001)，categorical_crossentropy
 - 当前最佳验证准确率 **98.5%**（3669 张训练数据）
 
 **目录结构**：
@@ -103,3 +111,5 @@ SSD 检测流（混合模式）：
 - **prepare_dataset.py** 仅生成合成数据演示流程，使用真实数据时无需运行。
 - **SSD 检测器**：`ssd_detector.py` 用 OpenCV DNN 加载 Caffe SSD 模型，输入 260×260，5 层特征图多尺度检测，输出人脸框 + 二分类。可独立使用：`python ssd_detector.py <图片>`。
 - **日志系统**：`utils/logger.py` 提供统一日志（`get_logger()`），训练/测试脚本均使用。日志输出到 `logs/` 目录。
+- **共享配置**：`config.py` 集中管理路径、常量、`load_trained_model()`、`preprocess_image()`，各脚本通过 `from config import ...` 引用。
+- **TFLite 导出**：`export_tflite.py` 支持 FP16（~11MB）、动态量化（~6MB）、INT8（~5MB）三种格式，适合边缘设备部署。

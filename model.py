@@ -1,18 +1,18 @@
 """
 口罩佩戴检测 CNN 模型定义 — 二分类 (Mask / NoMask)
-4层卷积 + BatchNorm + Dense(64) + softmax
+4层卷积 + BatchNorm + GlobalAveragePooling + Dense(64) + softmax
 """
 import tensorflow as tf
 from tensorflow.keras import layers, models
 
 
-def build_mask_classifier(input_shape=(224, 224, 3), num_classes=4):
+def build_mask_classifier(input_shape=(224, 224, 3), num_classes=2):
     """
-    构建轻量级 CNN 四分类模型
+    构建轻量级 CNN 二分类模型
 
     参数:
         input_shape: 输入图像尺寸, 默认 224x224x3
-        num_classes: 分类数, 默认 4
+        num_classes: 分类数, 默认 2
 
     返回:
         未编译的 Keras Sequential 模型
@@ -41,8 +41,7 @@ def build_mask_classifier(input_shape=(224, 224, 3), num_classes=4):
     model.add(layers.MaxPooling2D((2, 2)))
 
     # ---- 分类头 ----
-    model.add(layers.Flatten())
-    # 14*14*128 = 25088 -> 64 神经元
+    model.add(layers.GlobalAveragePooling2D())
     model.add(layers.Dense(64, activation='relu'))
     model.add(layers.Dropout(0.5))
     model.add(layers.Dense(num_classes, activation='softmax'))

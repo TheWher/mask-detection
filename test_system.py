@@ -15,14 +15,9 @@ warnings.filterwarnings('ignore')
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-TRAIN_DIR = os.path.join(BASE_DIR, 'dataset', 'train', 'data', 'images_2class')
-MODEL_PATH = os.path.join(BASE_DIR, 'models', 'mask_classifier_binary.h5')
-REPORT_PATH = os.path.join(BASE_DIR, 'test_report.txt')
+from config import BASE_DIR, TRAIN_DIR, MODEL_PATH, IMG_SIZE, CLASSES_LIST, NUM_CLASSES
 
-IMG_SIZE = (224, 224)
-CLASSES = ['mask', 'nomask']
-NUM_CLASSES = 2
+REPORT_PATH = os.path.join(BASE_DIR, 'test_report.txt')
 
 results = []
 report_lines = []
@@ -58,7 +53,7 @@ def test_case(name):
 @test_case("TC01: 数据集目录结构")
 def test_directory_structure():
     all_ok = True
-    for cls in CLASSES:
+    for cls in CLASSES_LIST:
         path = os.path.join(TRAIN_DIR, cls)
         if not os.path.isdir(path):
             log(f"  [FAIL] 目录缺失: {path}", 'FAIL')
@@ -73,7 +68,7 @@ def test_directory_structure():
 @test_case("TC02: 数据集规模")
 def test_dataset_size():
     total = 0
-    for cls in CLASSES:
+    for cls in CLASSES_LIST:
         path = os.path.join(TRAIN_DIR, cls)
         count = len([f for f in os.listdir(path)
                     if f.lower().endswith(('.jpg', '.png', '.jpeg'))])
@@ -86,7 +81,7 @@ def test_dataset_size():
 @test_case("TC03: 类别比例")
 def test_class_balance():
     counts = {}
-    for cls in CLASSES:
+    for cls in CLASSES_LIST:
         path = os.path.join(TRAIN_DIR, cls)
         counts[cls] = len([f for f in os.listdir(path)
                           if f.lower().endswith(('.jpg', '.png', '.jpeg'))])
@@ -100,7 +95,7 @@ def test_class_balance():
 def test_image_format():
     from PIL import Image
     sample_paths = []
-    for cls in CLASSES:
+    for cls in CLASSES_LIST:
         path = os.path.join(TRAIN_DIR, cls)
         if os.path.isdir(path):
             files = [f for f in os.listdir(path) if f.lower().endswith(('.jpg', '.png', '.jpeg'))]
@@ -122,7 +117,7 @@ def test_image_format():
 @test_case("TC05: 模型结构")
 def test_model_structure():
     from model import build_mask_classifier, compile_model
-    model = build_mask_classifier(input_shape=(*IMG_SIZE, 3), num_classes=NUM_CLASSES)
+    model = build_mask_classifier(input_shape=(*IMG_SIZE, 3))
     model = compile_model(model)
     params = model.count_params()
     log(f"  输入: {model.input_shape} | 输出: {model.output_shape}", 'INFO')
@@ -132,7 +127,8 @@ def test_model_structure():
 
 @test_case("TC06: 推理 — Mask 样本")
 def test_inference_mask():
-    from predict import load_trained_model, predict
+    from config import load_trained_model
+    from predict import predict
     if not os.path.exists(MODEL_PATH):
         log("  [SKIP] 无模型文件", 'SKIP')
         return True
@@ -151,7 +147,8 @@ def test_inference_mask():
 
 @test_case("TC07: 推理 — NoMask 样本")
 def test_inference_nomask():
-    from predict import load_trained_model, predict
+    from config import load_trained_model
+    from predict import predict
     if not os.path.exists(MODEL_PATH):
         log("  [SKIP] 无模型文件", 'SKIP')
         return True
@@ -170,7 +167,7 @@ def test_inference_nomask():
 
 @test_case("TC08: 边界 — 文件不存在")
 def test_file_not_found():
-    from predict import preprocess_image
+    from config import preprocess_image
     try:
         preprocess_image('/nonexistent/image.jpg')
         return False
@@ -182,7 +179,7 @@ def test_file_not_found():
 
 @test_case("TC09: 边界 — 损坏图片")
 def test_corrupt_image():
-    from predict import preprocess_image
+    from config import preprocess_image
     tmp = tempfile.NamedTemporaryFile(suffix='.jpg', delete=False)
     tmp.write(b'not a valid image')
     tmp.close()
@@ -197,14 +194,15 @@ def test_corrupt_image():
 
 @test_case("TC10: 批量推理")
 def test_batch_predict():
-    from batch_predict import load_trained_model, preprocess_batch
+    from config import load_trained_model
+    from batch_predict import preprocess_batch
     import tensorflow as tf
     if not os.path.exists(MODEL_PATH):
         log("  [SKIP] 无模型文件", 'SKIP')
         return True
     model = load_trained_model()
     test_files = []
-    for cls in CLASSES:
+    for cls in CLASSES_LIST:
         cls_dir = os.path.join(TRAIN_DIR, cls)
         if os.path.isdir(cls_dir):
             for f in sorted(os.listdir(cls_dir))[:3]:
@@ -221,13 +219,14 @@ def test_batch_predict():
 
 @test_case("TC11: 单张推理性能")
 def test_inference_perf():
-    from predict import load_trained_model, predict
+    from config import load_trained_model
+    from predict import predict
     if not os.path.exists(MODEL_PATH):
         log("  [SKIP] 无模型文件", 'SKIP')
         return True
     model = load_trained_model()
     test_files = []
-    for cls in CLASSES:
+    for cls in CLASSES_LIST:
         cls_dir = os.path.join(TRAIN_DIR, cls)
         if os.path.isdir(cls_dir):
             for f in sorted(os.listdir(cls_dir))[:3]:

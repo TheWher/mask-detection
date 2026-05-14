@@ -9,7 +9,8 @@ import os
 import numpy as np
 import cv2
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+from config import BASE_DIR
+
 PROTOTXT = os.path.join(BASE_DIR, 'models', 'face_mask_detection.prototxt')
 CAFFEMODEL = os.path.join(BASE_DIR, 'models', 'face_mask_detection.caffemodel')
 
@@ -74,43 +75,24 @@ def decode_bbox(anchors, raw_outputs, variances=(0.1, 0.1, 0.2, 0.2)):
     return np.concatenate([predict_xmin, predict_ymin, predict_xmax, predict_ymax], axis=-1)
 
 
-def single_class_nms(bboxes, confidences, conf_thresh=0.5, iou_thresh=0.4):
-    """单类别 NMS，返回保留的索引列表"""
+def nms_boxes(bboxes, confidences, conf_thresh=0.5, iou_thresh=0.4):
+    """OpenCV DNN NMS 包装 — 比纯 Python 实现快一个数量级"""
     if len(bboxes) == 0:
         return []
-
-    keep_mask = confidences > conf_thresh
-    bboxes = bboxes[keep_mask]
-    confidences = confidences[keep_mask]
-    orig_indices = np.where(keep_mask)[0]
-
-    if len(bboxes) == 0:
+    # 转换 [xmin,ymin,xmax,ymax] → [x,y,w,h]
+    boxes = []
+    scores = []
+    for i, b in enumerate(bboxes):
+        if confidences[i] > conf_thresh:
+            boxes.append([float(b[0]), float(b[1]),
+                          float(b[2] - b[0]), float(b[3] - b[1])])
+            scores.append(float(confidences[i]))
+    if not boxes:
         return []
-
-    xmin, ymin = bboxes[:, 0], bboxes[:, 1]
-    xmax, ymax = bboxes[:, 2], bboxes[:, 3]
-    area = (xmax - xmin + 1e-3) * (ymax - ymin + 1e-3)
-    idxs = np.argsort(confidences)
-    pick = []
-
-    while len(idxs) > 0:
-        last = len(idxs) - 1
-        i = idxs[last]
-        pick.append(i)
-
-        overlap_xmin = np.maximum(xmin[i], xmin[idxs[:last]])
-        overlap_ymin = np.maximum(ymin[i], ymin[idxs[:last]])
-        overlap_xmax = np.minimum(xmax[i], xmax[idxs[:last]])
-        overlap_ymax = np.minimum(ymax[i], ymax[idxs[:last]])
-        overlap_w = np.maximum(0, overlap_xmax - overlap_xmin)
-        overlap_h = np.maximum(0, overlap_ymax - overlap_ymin)
-        overlap_area = overlap_w * overlap_h
-        overlap_ratio = overlap_area / (area[idxs[:last]] + area[i] - overlap_area)
-
-        delete_idx = np.concatenate(([last], np.where(overlap_ratio > iou_thresh)[0]))
-        idxs = np.delete(idxs, delete_idx)
-
-    return orig_indices[pick]
+    idxs = cv2.dnn.NMSBoxes(boxes, scores, conf_thresh, iou_thresh)
+    if len(idxs) == 0:
+        return []
+    return idxs.flatten().tolist()
 
 
 class SSDDetector:
@@ -146,9 +128,9 @@ class SSDDetector:
         bbox_max_scores = np.max(y_cls, axis=1)
         bbox_max_classes = np.argmax(y_cls, axis=1)
 
-        keep_idxs = single_class_nms(y_bboxes, bbox_max_scores,
-                                     conf_thresh=self.conf_thresh,
-                                     iou_thresh=self.iou_thresh)
+        keep_idxs = nms_boxes(y_bboxes, bbox_max_scores,
+                              conf_thresh=self.conf_thresh,
+                              iou_thresh=self.iou_thresh)
 
         detections = []
         for idx in keep_idxs:

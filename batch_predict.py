@@ -12,21 +12,7 @@ import time
 import csv
 import numpy as np
 from PIL import Image
-from tensorflow.keras.models import load_model
-
-IMG_SIZE = (224, 224)
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(BASE_DIR, 'models', 'mask_classifier_binary.h5')
-
-CLASS_NAMES = {0: 'Mask', 1: 'NoMask'}
-
-
-def load_trained_model():
-    if not os.path.exists(MODEL_PATH):
-        print(f"[错误] 模型文件不存在: {MODEL_PATH}")
-        print("[提示] 请先运行: python train.py")
-        sys.exit(1)
-    return load_model(MODEL_PATH, compile=False)
+from config import load_trained_model, IMG_SIZE, CLASS_NAMES
 
 
 def collect_images(input_dir):

@@ -138,7 +138,7 @@ def label_images():
                     0.5, (0, 255, 0), 1)
         # 叠加按键提示（英文/数字，渲染可靠）
         hints = [
-            "[1]MaskOK [2]Mouth [3]Nose [4]NoMask",
+            "[1]Mask [2]NoMask",
             "[S]Skip [D]Invalid [B]Back [Q]Quit",
         ]
         for i, hint in enumerate(hints):
