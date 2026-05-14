@@ -35,3 +35,12 @@ logs/
 batch_result.csv
 test_report.txt
 test_batch/
+
+# Project local config
+.claude/
+
+# Training data (too large, managed separately)
+dataset/train/data/
+
+# Third-party reference
+FaceMaskDetection-master/

@@ -34,39 +34,53 @@ LEARNING_RATE = 0.001           # 初始学习率
 # 路径配置
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATASET_DIR = os.path.join(BASE_DIR, 'dataset')
-TRAIN_DIR = os.path.join(DATASET_DIR, 'train')
-TEST_DIR = os.path.join(DATASET_DIR, 'test')
+TRAIN_DIR = os.path.join(DATASET_DIR, 'train', 'data', 'images_2class')
 SAVE_DIR = os.path.join(BASE_DIR, 'models')
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
 os.makedirs(SAVE_DIR, exist_ok=True)
 os.makedirs(LOG_DIR, exist_ok=True)
 
-MODEL_PATH = os.path.join(SAVE_DIR, 'mask_classifier.h5')
+MODEL_PATH = os.path.join(SAVE_DIR, 'mask_classifier_binary.h5')
 PLOT_PATH = os.path.join(SAVE_DIR, 'training_curve.png')
+
+# 验证集切分比例
+VAL_SPLIT = 0.2
 
 # 初始化日志
 logger = get_logger(os.path.join(LOG_DIR, 'train.log'))
 
 
+CLASSES = ['mask', 'nomask']  # 二分类
+
+
 def check_dataset():
     """检查数据集是否存在并打印统计信息"""
-    if not os.path.exists(TRAIN_DIR) or not os.path.exists(TEST_DIR):
+    if not os.path.exists(TRAIN_DIR):
         logger.error("数据集目录不存在！")
-        logger.info("请先运行: python dataset/prepare_dataset.py")
+        logger.info(f"期望路径: {TRAIN_DIR}")
+        logger.info("请先运行: python label_images.py 完成标注")
         sys.exit(1)
 
     logger.info("数据集统计：")
-    for cls in ['with_mask', 'without_mask']:
-        train_count = len(os.listdir(os.path.join(TRAIN_DIR, cls)))
-        test_count = len(os.listdir(os.path.join(TEST_DIR, cls)))
-        logger.info(f"  {cls}: 训练 {train_count} 张 / 测试 {test_count} 张")
+    total = 0
+    for cls in CLASSES:
+        cls_dir = os.path.join(TRAIN_DIR, cls)
+        if os.path.exists(cls_dir):
+            count = len([f for f in os.listdir(cls_dir)
+                        if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
+            logger.info(f"  {cls}: {count} 张")
+            total += count
+        else:
+            logger.info(f"  {cls}: 目录不存在")
+    logger.info(f"  总计: {total} 张")
+    logger.info(f"  验证集比例: {VAL_SPLIT:.0%} (训练 {total * (1 - VAL_SPLIT):.0f} / 验证 {total * VAL_SPLIT:.0f})")
 
 
 def create_data_generators():
     """
     创建训练和验证数据生成器
     - 训练集：随机增强（旋转、平移、翻转、亮度调整）
-    - 测试集：仅归一化
+    - 验证集：仅归一化（从训练目录按 VAL_SPLIT 切分）
     """
     # 训练数据增强（针对小数据集做了适度增强）
     train_datagen = ImageDataGenerator(
@@ -77,32 +91,64 @@ def create_data_generators():
         zoom_range=0.15,               # 随机缩放 15%
         horizontal_flip=True,          # 水平翻转
         brightness_range=[0.8, 1.2],   # 亮度调整
-        fill_mode='nearest'
+        fill_mode='nearest',
+        validation_split=VAL_SPLIT
     )
-
-    # 测试数据仅归一化
-    test_datagen = ImageDataGenerator(rescale=1.0 / 255)
 
     train_generator = train_datagen.flow_from_directory(
         TRAIN_DIR,
         target_size=IMG_SIZE,
         batch_size=BATCH_SIZE,
-        class_mode='binary',
+        class_mode='categorical',
+        subset='training',
         shuffle=True,
         seed=42
     )
 
-    test_generator = test_datagen.flow_from_directory(
-        TEST_DIR,
+    val_generator = train_datagen.flow_from_directory(
+        TRAIN_DIR,
         target_size=IMG_SIZE,
         batch_size=BATCH_SIZE,
-        class_mode='binary',
+        class_mode='categorical',
+        subset='validation',
         shuffle=False
     )
 
     logger.info(f"类别索引: {train_generator.class_indices}")
-    logger.info(f"训练批次: {len(train_generator)} | 验证批次: {len(test_generator)}")
-    return train_generator, test_generator
+    logger.info(f"训练批次: {len(train_generator)} | 验证批次: {len(val_generator)}")
+    return train_generator, val_generator
+
+
+def compute_class_weights():
+    """计算类别权重，用 sqrt 缩放 + 上限 3.0，避免极端权重"""
+    counts = {}
+    for cls in CLASSES:
+        cls_dir = os.path.join(TRAIN_DIR, cls)
+        if os.path.exists(cls_dir):
+            counts[cls] = len([f for f in os.listdir(cls_dir)
+                              if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
+        else:
+            counts[cls] = 0
+
+    total = sum(counts.values())
+    # flow_from_directory 字母序: mask_correct(0), mask_mouth(1), mask_nose(2), no_mask(3)
+    sorted_classes = sorted(CLASSES)
+    weights = {}
+    for idx, cls in enumerate(sorted_classes):
+        count = counts.get(cls, 0)
+        if count > 0:
+            # sqrt 缩放使极端权重更温和
+            import math
+            w = math.sqrt(total / count)
+            w = min(w, 3.0)       # 上限 3.0
+        else:
+            w = 1.0
+        weights[idx] = w
+
+    logger.info(f"类别权重 (total={total}):")
+    for idx, w in weights.items():
+        logger.info(f"  [{idx}] {sorted_classes[idx]}: {counts[sorted_classes[idx]]} 张 → 权重 {w:.3f}")
+    return weights
 
 
 def plot_training_history(history):
@@ -143,11 +189,11 @@ def train():
 
     # 2. 加载数据
     logger.info("[2/4] 加载数据并配置增强...")
-    train_gen, test_gen = create_data_generators()
+    train_gen, val_gen = create_data_generators()
 
     # 3. 构建模型
     logger.info("[3/4] 构建模型...")
-    model = build_mask_classifier(input_shape=(*IMG_SIZE, 3))
+    model = build_mask_classifier(input_shape=(*IMG_SIZE, 3), num_classes=2)
     model = compile_model(model, learning_rate=LEARNING_RATE)
     model.summary()
 
@@ -177,6 +223,9 @@ def train():
         )
     ]
 
+    # 计算类别权重（缓解样本不均衡）
+    class_weight = compute_class_weights()
+
     # 5. 开始训练
     logger.info("[4/4] 开始训练...")
     logger.info(f"轮数: {EPOCHS} | 批次: {BATCH_SIZE} | 学习率: {LEARNING_RATE}")
@@ -184,7 +233,8 @@ def train():
     history = model.fit(
         train_gen,
         epochs=EPOCHS,
-        validation_data=test_gen,
+        validation_data=val_gen,
+        class_weight=class_weight,
         callbacks=callbacks,
         verbose=1
     )

@@ -1,13 +1,15 @@
 # 口罩佩戴检测系统
 
-基于深度学习的口罩佩戴检测系统（图像二分类），判断图片中的人是否佩戴口罩。
+基于深度学习的口罩佩戴检测——判断人脸是否佩戴口罩（二分类）。
 
 ## 项目简介
 
-- **任务**: 图像二分类 —— 戴口罩 vs 不戴口罩
-- **模型**: 自定义轻量级 CNN（4层卷积 + Flatten + 早停）
-- **数据**: 800 张合成人脸图像
-- **特点**: 代码量小、注释全、一键运行、测试套件完善
+- **任务**：图像二分类 —— Mask / NoMask
+- **模型**：4 层 CNN + Flatten + Dense(2, softmax)，~185 万参数
+- **人脸检测**：SSD Caffe 模型（OpenCV DNN，默认）+ Haar 级联（回退）
+- **数据**：3669 张真实人脸图像（VOC XML 标注），mask 656 张 / nomask 3013 张
+- **准确率**：最佳验证准确率 98.5%
+- **推理模式**：单张 / 批量 / 实时摄像头
 
 ## 技术栈
 
@@ -15,85 +17,102 @@
 |------|------|
 | 语言 | Python 3.7+ |
 | 框架 | TensorFlow / Keras |
-| 图像处理 | PIL (Pillow) |
-| 数据处理 | NumPy、Scikit-learn |
-| 可视化 | Matplotlib |
+| 人脸检测 | OpenCV DNN (SSD) / Haar 级联 |
+| 图像处理 | PIL、OpenCV |
+| 数据处理 | NumPy |
+| 可视化 | Matplotlib、Grad-CAM |
 
 ## 项目结构
 
 ```
 mask-detection/
+├── model.py                      # CNN 模型定义
+├── train.py                      # 训练脚本（启用类别权重）
+├── predict.py                    # 单张预测
+├── batch_predict.py              # 批量预测 + CSV
+├── predict_realtime.py           # 实时检测（摄像头/图片）
+├── ssd_detector.py               # SSD 检测器模块
+├── label_images.py               # 交互式标注工具
+├── test_system.py                # 12 项功能测试套件
 ├── dataset/
-│   ├── prepare_dataset.py       # 数据集生成脚本（224x224）
-│   ├── train/                   # 训练集（640张，2类各320）
-│   └── test/                    # 测试集（160张，2类各80）
+│   ├── prepare_dataset.py        # 合成数据生成（仅演示）
+│   └── train/data/
+│       ├── labeled/              # 原始图片 3539 张
+│       ├── label/                # VOC XML 标注 3537 个
+│       └── images_2class/        # 训练数据
+│           ├── mask/             # 656 张
+│           └── nomask/           # 3013 张
 ├── models/
-│   ├── mask_classifier.h5       # 训练好的模型
-│   └── training_curve.png       # 训练曲线图
-├── logs/                        # 运行日志
-│   └── train.log
+│   ├── mask_classifier_binary.h5 # CNN 模型 (98.5%)
+│   ├── face_mask_detection.prototxt   # SSD 结构 (Caffe)
+│   ├── face_mask_detection.caffemodel # SSD 权重 (Caffe)
+│   └── training_curve.png        # 训练曲线
+├── FaceMaskDetection-master/     # 参考项目（SSD 多框架实现）
 ├── utils/
-│   ├── __init__.py
-│   └── logger.py                # 统一日志工具
-├── model.py                     # CNN 模型定义
-├── train.py                     # 训练脚本（15轮 + 早停）
-├── predict.py                   # 单张图片预测
-├── batch_predict.py             # 批量预测 + CSV导出
-├── test_system.py               # 14项功能测试套件
-├── test_report.txt              # 测试报告（自动生成）
-├── requirements.txt             # 依赖清单
-├── report.md                    # 设计报告
-└── README.md                    # 本文件
+│   ├── logger.py                 # 统一日志工具
+│   └── __init__.py
+└── logs/                         # 运行日志
 ```
 
 ## 快速开始
 
-### 1. 环境安装
+### 1. 安装依赖
 
 ```bash
 pip install -r requirements.txt
 ```
 
-> 如果遇到 `Could not install packages due to an OSError` 长路径错误，说明你用的是 Windows Store 版 Python，建议卸载后改用 [python.org](https://python.org) 的官网版本。临时解决可用短路径虚拟环境：
-> ```bash
-> python -m venv C:/tmp/mask-venv
-> C:/tmp/mask-venv/Scripts/pip install -r requirements.txt
-> C:/tmp/mask-venv/Scripts/python train.py   # 后续均用此路径
-> ```
-
-### 2. 生成数据集
+### 2. 标注数据（如已有 images_2class 则跳过）
 
 ```bash
-python dataset/prepare_dataset.py
+python label_images.py
 ```
 
-生成 800 张 224x224 合成人脸图像，自动划分训练/测试集。
+交互式 GUI：按键 1 → mask，按键 2 → nomask，s 跳过，q 保存退出。
 
-### 3. 模型训练
+### 3. 训练模型
 
 ```bash
 python train.py
 ```
 
 - 最大 15 轮，EarlyStopping 自动提前停止
-- 自动保存最佳模型到 `models/mask_classifier.h5`
+- 自动保存最佳模型到 `models/mask_classifier_binary.h5`
 - 生成训练曲线 `models/training_curve.png`
+- 已启用类别权重（mask ~2.36×）缓解样本不均衡
 
 ### 4. 单张预测
 
 ```bash
 python predict.py <图片路径>
-python predict.py dataset/test/with_mask/with_mask_0001.jpg
 ```
 
 ### 5. 批量预测
 
 ```bash
-python batch_predict.py <图片目录>
-python batch_predict.py ./test_images/ --output result.csv
+python batch_predict.py <图片目录> --output result.csv
 ```
 
-### 6. 运行测试
+### 6. 实时检测
+
+```bash
+# 摄像头 (SSD + CNN，默认)
+python predict_realtime.py
+
+# SSD 端到端（跳过 CNN，最快 ~0.03s/帧）
+python predict_realtime.py --detector ssd-e2e
+
+# Haar 回退模式
+python predict_realtime.py --detector haar
+
+# 单张图片
+python predict_realtime.py --image test.jpg
+
+# 保存结果 + 无 GUI
+python predict_realtime.py --image test.jpg --save result.jpg --no-cam --headless
+```
+
+### 7. 运行测试
 
 ```bash
 python test_system.py
@@ -101,57 +120,50 @@ python test_system.py
 
 ## 模型结构
 
-| 层 | 类型 | 输出尺寸 | 说明 |
-|----|------|----------|------|
-| Conv2D(32) + BN + MaxPool | 卷积块 | 112x112x32 | 第1组 |
-| Conv2D(64) + BN + MaxPool | 卷积块 | 56x56x64 | 第2组 |
-| Conv2D(128) + BN + MaxPool | 卷积块 | 28x28x128 | 第3组 |
-| Conv2D(128) + BN + MaxPool | 卷积块 | 14x14x128 | 第4组 |
-| Flatten | 展平 | 25088 | - |
-| Dense(64) + Dropout(0.5) | 全连接 | 64 | 防过拟合 |
-| Dense(1, sigmoid) | 输出 | 1 | 二分类 |
+| 层 | 输出尺寸 | 说明 |
+|----|----------|------|
+| Conv2D(32) + BN + MaxPool | 112×112×32 | 第 1 卷积块 |
+| Conv2D(64) + BN + MaxPool | 56×56×64 | 第 2 卷积块 |
+| Conv2D(128) + BN + MaxPool | 28×28×128 | 第 3 卷积块 |
+| Conv2D(128) + BN + MaxPool | 14×14×128 | 第 4 卷积块 |
+| Flatten | 25088 | — |
+| Dense(64) + Dropout(0.5) | 64 | 防过拟合 |
+| Dense(2, softmax) | 2 | 二分类输出 |
 
-> 参数量约 185 万（相比原方案 850 万减少 78%）
+## SSD 检测器
 
-## 关键配置
+`ssd_detector.py` 使用 OpenCV DNN 加载 Caffe SSD 模型，一次推理同时输出人脸框和口罩分类。
 
-| 参数 | 值 | 说明 |
-|------|-----|------|
-| 图像尺寸 | 224 x 224 | 统一输入尺寸 |
-| 批次大小 | 16 | 适配 224 图像 |
-| 初始学习率 | 0.001 | Adam 优化器 |
-| 学习率衰减 | ReduceLROnPlateau | 3轮不降则减半 |
-| 早停策略 | patience=5 | 5轮不降即停止 |
+| 模式 | 说明 | 速度 |
+|------|------|------|
+| `--detector ssd` | SSD 取人脸框 → CNN 分类 | ~0.18s/帧 |
+| `--detector ssd-e2e` | SSD 端到端（人脸+分类一次完成） | ~0.03s/帧 |
+| `--detector haar` | Haar 级联人脸框 → CNN 分类 | 慢 |
 
-## 测试用例说明
+## 训练配置
 
-| 编号 | 测试项 | 类型 |
-|------|--------|------|
-| TC01 | 数据集目录结构 | 完整性 |
-| TC02 | 数据集规模(800张) | 验证 |
-| TC03 | 类别平衡性 | 验证 |
-| TC04 | 图像格式与尺寸(224x224) | 验证 |
-| TC05 | 模型结构(输入/输出/参数量) | 结构 |
-| TC06 | 戴口罩样本推理 | 功能 |
-| TC07 | 不戴口罩样本推理 | 功能 |
-| TC08 | 文件不存在处理 | 边界 |
-| TC09 | 损坏图片容错 | 边界 |
-| TC10 | 命令行参数检查 | 边界 |
-| TC11 | 批量预测功能 | 功能 |
-| TC12 | 单张推理性能 | 性能 |
-| TC13 | 训练收敛性(3轮>80%) | 性能 |
-| TC14 | 系统环境信息 | 环境 |
+| 参数 | 值 |
+|------|-----|
+| 图像尺寸 | 224 × 224 |
+| 批次大小 | 16 |
+| 初始学习率 | 0.001 |
+| 优化器 | Adam |
+| 损失函数 | categorical_crossentropy |
+| 验证集比例 | 20% |
+| 数据增强 | 旋转 ±20°、平移 ±15%、缩放 ±15%、水平翻转、亮度 0.8~1.2 |
+| 早停 | patience=5 (val_loss) |
+| 学习率衰减 | factor=0.5, patience=3 |
 
 ## 常见问题
 
 **Q: 数据集目录不存在？**
-A: 先运行 `python dataset/prepare_dataset.py`
+A: 运行 `python label_images.py` 标注图片，或直接将图片放入 `dataset/train/data/images_2class/mask/` 和 `nomask/` 目录。
 
 **Q: 模型文件不存在？**
-A: 先运行 `python train.py` 训练模型
+A: 先运行 `python train.py` 训练模型。
 
-**Q: 如何使用真实数据？**
-A: 将图片按分类放入 `dataset/train/with_mask/` 等对应目录，保持 JPG/PNG 格式即可
+**Q: 摄像头黑屏？**
+A: 程序会自动在 MSMF 和 DirectShow 后端间切换。如仍黑屏，检查摄像头是否被其他应用占用。
 
 **Q: 预测置信度低？**
-A: 合成数据训练出的模型泛化能力有限，真实数据建议增加样本量或使用迁移学习
+A: 尝试 `--detector ssd-e2e` 端到端模式，或增加训练数据量。
