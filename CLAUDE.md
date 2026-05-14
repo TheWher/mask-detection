@@ -129,3 +129,4 @@ SSD 检测流（混合模式）：
 - **共享配置**：`config.py` 集中管理所有路径、常量、`load_trained_model()`、`preprocess_image()`。各脚本通过 `from config import ...` 引用，避免重复定义。
 - **Grad-CAM**：`predict_realtime.py` 中已修复重复推理 bug — `face_arr_exp` 从第一次 `_cnn_classify()` 缓存复用，不再调两次 CNN。
 - **TFLite 导出**：`export_tflite.py` 支持 FP16（~11MB）、动态量化（~6MB）、INT8（~5MB）三种格式。INT8 需校准数据（自动从训练集采样 100 张）。
+- **GUI 架构**（`gui_app.py`）：**主线程**只跑 tkinter UI 刷新（`after(33)` ~30fps），**工作线程**独立跑摄像头读取 + 模型推理 + 画框，通过 `queue.Queue(maxsize=1)` 传画面（只保留最新帧，消除延迟）。`threading.Event` 控制线程安全退出。识别结果缓存 `cached_dets` 确保非推理帧也显示框。推理间隔可通过界面旋钮实时调节（1=每帧推理，2=隔1帧，默认2）。切换检测器无需重启摄像头。

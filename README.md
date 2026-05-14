@@ -60,26 +60,36 @@ mask-detection/
 pip install -r requirements.txt
 ```
 
-### 2. 标注数据（如已有 images_2class 则跳过）
+### 2. 图形化界面（推荐）
+
+```bash
+python gui_app.py
+```
+
+一个窗口搞定：训练、单张/批量预测、实时摄像头检测、报告图表、TFLite 导出。
+
+### 3. 标注数据（如已有 images_2class 则跳过）
 
 ```bash
 python label_images.py
 ```
 
-交互式 GUI：按键 1 → mask，按键 2 → nomask，s 跳过，q 保存退出。
+按键：1 → mask，2 → nomask，s 跳过，q 保存退出。
 
-### 3. 训练模型
+### 4. 训练模型
 
 ```bash
 python train.py
+python train.py --batch-size 32 --epochs 30 --lr 0.0005
 ```
 
 - 最大 15 轮，EarlyStopping 自动提前停止
 - 自动保存最佳模型到 `models/mask_classifier_binary.h5`
-- 生成训练曲线 `models/training_curve.png`
+- 自动生成训练曲线、混淆矩阵、数据集样本图、模型结构图
+- 每轮指标自动写入 `models/training_log.csv`
 - 已启用类别权重（mask ~2.36×）缓解样本不均衡
 
-### 4. 单张预测
+### 5. 单张预测
 
 ```bash
 python predict.py <图片路径>
@@ -110,7 +120,23 @@ python predict_realtime.py --image test.jpg
 python predict_realtime.py --image test.jpg --save result.jpg --no-cam --headless
 ```
 
-### 7. 运行测试
+### 8. 生成报告
+
+```bash
+python report.py
+```
+
+生成：数据集样本网格 + 模型结构图 + 混淆矩阵（`models/report_*.png`）。
+
+### 9. 导出 TFLite
+
+```bash
+python export_tflite.py
+```
+
+导出 FP16 / 动态量化 / INT8 三种格式，适合边缘设备部署。
+
+### 10. 运行测试
 
 ```bash
 python test_system.py
@@ -134,9 +160,9 @@ python test_system.py
 
 | 模式 | 说明 | 速度 |
 |------|------|------|
-| `--detector ssd` | SSD 取人脸框 → CNN 分类 | ~0.18s/帧 |
-| `--detector ssd-e2e` | SSD 端到端（人脸+分类一次完成） | ~0.03s/帧 |
-| `--detector haar` | Haar 级联人脸框 → CNN 分类 | 慢 |
+| `--detector ssd-e2e` | SSD 端到端（人脸+分类一次完成） | ~23 FPS |
+| `--detector ssd` | SSD 取人脸框 → CNN 分类 | ~12 FPS |
+| `--detector haar` | Haar 级联人脸框 → CNN 分类 | ~5 FPS |
 
 ## 训练配置
 
@@ -161,7 +187,10 @@ A: 运行 `python label_images.py` 标注图片，或直接将图片放入 `data
 A: 先运行 `python train.py` 训练模型。
 
 **Q: 摄像头黑屏？**
-A: 程序会自动在 MSMF 和 DirectShow 后端间切换。如仍黑屏，检查摄像头是否被其他应用占用。
+A: 优先 DirectShow 后端，自动验证非纯黑帧。如仍黑屏，检查摄像头是否被其他应用占用。
+
+**Q: 实时检测卡顿？**
+A: GUI 中使用 `ssd-e2e` 模式 + 推理间隔调为 1（每帧推理可达 23 FPS）。命令行用 `python predict_realtime.py --detector ssd-e2e`。
 
 **Q: 预测置信度低？**
 A: 尝试 `--detector ssd-e2e` 端到端模式，或增加训练数据量。
